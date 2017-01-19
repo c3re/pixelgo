@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"github.com/kaey/framebuffer"
 	"log"
 	"net"
 	"os"
@@ -11,14 +10,26 @@ import (
 	"strings"
 	"syscall"
 	"unsafe"
+	"golang.org/x/sys/unix"
 )
 
 var xsize, ysize, bitspp, bytespp int
 var data []byte
+const FBIOGET_VSCREENINFO uintptr = 0x4600
 
 func main() {
-	Fb_init("/dev/fb0")
-	ln, err := net.Listen("tcp", ":1234")
+	var dev string = "/dev/fb0"
+	var port string = "1234"
+	if len(os.Args) == 1 {  
+		fmt.Printf("Pixelgo! using %s as Framebufferdevice and listening on Port %s\n", dev, port)
+		fmt.Printf("if you dont like that call pixelgo <fbdev> <port>\n")
+	} else if len(os.Args) == 3{
+		dev = os.Args[1]
+		port = os.Args[2]
+		fmt.Printf("Pixelgo! using %s as Framebufferdevice and listening on Port %s\n", dev, port)
+	}
+	Fb_init(dev)
+	ln, err := net.Listen("tcp", ":" + port)
 	if err != nil {
 		fmt.Println("TCP")
 		log.Fatal(err)
@@ -40,7 +51,7 @@ func handleConnection(conn net.Conn) {
 	for err == nil {
 		status, err = reader.ReadString('\n')
 		data := strings.Split(status, " ")
-		if data[0] == "SIZE" {
+		if status == "SIZE\r\n" {
 			fmt.Fprintf(conn, "SIZE %d %d\n", xsize, ysize)
 		} else if data[0] == "PX" { 
 			X, _ := strconv.Atoi(data[1])
@@ -98,33 +109,6 @@ func draw(x, y int, a, r, g, b byte) {
 	data[offset+1] = g
 	data[offset+2] = b
 	data[offset+3] = a
-}
-
-func handleConnection(conn net.Conn, c chan<- pixel) {
-	var err error
-	var status string
-	fmt.Println("Neue Connection: ", conn.RemoteAddr().String())
-	for err == nil {
-		status, err = bufio.NewReader(conn).ReadString('\n')
-		px6match, _ := regexp.MatchString("^PX [[:digit:]]+ [[:digit:]]+ [[:xdigit:]]{6}\r\n$", status)
-		px8match, _ := regexp.MatchString("^PX [[:digit:]]+ [[:digit:]]+ [[:xdigit:]]{8}\r\n$", status)
-		sizematch, _ := regexp.MatchString("^SIZE\r\n$", status)
-		if px6match {
-			data := strings.Split(status, " ")
-			X, _ := strconv.Atoi(data[1])
-			Y, _ := strconv.Atoi(data[2])
-			R := data[3][0:2]
-			G := data[3][2:4]
-			B := data[3][4:6]
-			R_int, _ := strconv.ParseInt(R, 16, 32)
-			G_int, _ := strconv.ParseInt(G, 16, 32)
-			B_int, _ := strconv.ParseInt(B, 16, 32)
-			fmt.Println("PX %d %d %d %d %d", X, Y, R_int, G_int, B_int)
-			c <- pixel{X, Y, 0, int(R_int), int(G_int), int(B_int)}
-
-type pixel struct {
-	X, Y       int
-	a, r, g, b byte
 }
 
 // copied from here: https://www.kernel.org/doc/Documentation/fb/api.txt
