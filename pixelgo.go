@@ -7,7 +7,6 @@ import (
 	"log"
 	"net"
 	"os"
-	//	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -40,19 +39,17 @@ func handleConnection(conn net.Conn) {
 	reader := bufio.NewReader(conn)
 	for err == nil {
 		status, err = reader.ReadString('\n')
-		//		px6match, _ := regexp.MatchString("^PX [[:digit:]]+ [[:digit:]]+ [[:xdigit:]]{6}\r\n$", status)
-		//		px8match, _ := regexp.MatchString("^PX [[:digit:]]+ [[:digit:]]+ [[:xdigit:]]{8}\r\n$", status)
-		//		sizematch, _ := regexp.MatchString("^SIZE\r\n$", status)
 		data := strings.Split(status, " ")
-		X, _ := strconv.Atoi(data[1])
-		Y, _ := strconv.Atoi(data[2])
-		R := data[3][0:2]
-		G := data[3][2:4]
-		B := data[3][4:6]
-		R_int, _ := strconv.ParseInt(R, 16, 32)
-		G_int, _ := strconv.ParseInt(G, 16, 32)
-		B_int, _ := strconv.ParseInt(B, 16, 32)
-		draw(X, Y, 0x00, byte(R_int), byte(G_int), byte(B_int))
+		if data[0] == "SIZE" {
+			fmt.Fprintf(conn, "SIZE %d %d\n", xsize, ysize)
+		} else if data[0] == "PX" { 
+			X, _ := strconv.Atoi(data[1])
+			Y, _ := strconv.Atoi(data[2])
+			rr, _ := strconv.ParseUint(data[3][0:2], 16, 8)
+			gg, _ := strconv.ParseUint(data[3][2:4], 16, 8)
+			bb, _ := strconv.ParseUint(data[3][4:6], 16, 8)
+			draw(X % xsize, Y % ysize, 0x00, byte(rr), byte(gg), byte(bb))
+		}
 	}
 }
 
@@ -96,10 +93,10 @@ func ioctl(fd, cmd uintptr, ptr *fb_var_screeninfo) error {
 
 func draw(x, y int, a, r, g, b byte) {
 	offset := xsize*y*4 + x*4
-	data[offset] = a
-	data[offset+1] = r
-	data[offset+2] = g
-	data[offset+3] = b
+	data[offset] = r
+	data[offset+1] = g
+	data[offset+2] = b
+	data[offset+3] = a
 }
 
 const FBIOGET_VSCREENINFO uintptr = 0x4600
