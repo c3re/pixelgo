@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 	"syscall"
@@ -30,6 +31,9 @@ func main() {
 		fmt.Printf("Pixelgo! using %s as Framebufferdevice and listening on Port %s\n", dev, port)
 	}
 	Fb_init(dev)
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt)
+	go handleExit(c)
 	ln, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		fmt.Println("TCP")
@@ -42,6 +46,13 @@ func main() {
 		}
 		go handleConnection(conn)
 	}
+}
+
+func handleExit(c <-chan os.Signal) {
+	_ = <-c
+	unix.Munmap(data)
+	fmt.Println("Bye...")
+	os.Exit(0)
 }
 
 func handleConnection(conn net.Conn) {
@@ -60,7 +71,7 @@ func handleConnection(conn net.Conn) {
 			rr, _ := strconv.ParseUint(data[3][0:2], 16, 8)
 			gg, _ := strconv.ParseUint(data[3][2:4], 16, 8)
 			bb, _ := strconv.ParseUint(data[3][4:6], 16, 8)
-			draw(X%xsize, Y%ysize, 0x00, byte(rr), byte(gg), byte(bb))
+			draw(X%xsize, Y%ysize, byte(rr), byte(gg), byte(bb))
 		}
 	}
 }
@@ -104,12 +115,11 @@ func ioctl(fd, cmd uintptr, ptr *fb_var_screeninfo) error {
 	return nil
 }
 
-func draw(x, y int, a, r, g, b byte) {
+func draw(x, y int, r, g, b byte) {
 	offset := xsize*y*4 + x*4
 	data[offset] = b
 	data[offset+1] = g
 	data[offset+2] = r
-	data[offset+3] = a
 }
 
 // copied from here: https://www.kernel.org/doc/Documentation/fb/api.txt
