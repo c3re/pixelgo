@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"golang.org/x/sys/unix"
 	"log"
 	"net"
 	"os"
@@ -10,26 +11,26 @@ import (
 	"strings"
 	"syscall"
 	"unsafe"
-	"golang.org/x/sys/unix"
 )
 
 var xsize, ysize, bitspp, bytespp int
 var data []byte
+
 const FBIOGET_VSCREENINFO uintptr = 0x4600
 
 func main() {
 	var dev string = "/dev/fb0"
 	var port string = "1234"
-	if len(os.Args) == 1 {  
+	if len(os.Args) == 1 {
 		fmt.Printf("Pixelgo! using %s as Framebufferdevice and listening on Port %s\n", dev, port)
 		fmt.Printf("if you dont like that call pixelgo <fbdev> <port>\n")
-	} else if len(os.Args) == 3{
+	} else if len(os.Args) == 3 {
 		dev = os.Args[1]
 		port = os.Args[2]
 		fmt.Printf("Pixelgo! using %s as Framebufferdevice and listening on Port %s\n", dev, port)
 	}
 	Fb_init(dev)
-	ln, err := net.Listen("tcp", ":" + port)
+	ln, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		fmt.Println("TCP")
 		log.Fatal(err)
@@ -53,13 +54,13 @@ func handleConnection(conn net.Conn) {
 		data := strings.Split(status, " ")
 		if status == "SIZE\r\n" {
 			fmt.Fprintf(conn, "SIZE %d %d\n", xsize, ysize)
-		} else if data[0] == "PX" { 
+		} else if data[0] == "PX" {
 			X, _ := strconv.Atoi(data[1])
 			Y, _ := strconv.Atoi(data[2])
 			rr, _ := strconv.ParseUint(data[3][0:2], 16, 8)
 			gg, _ := strconv.ParseUint(data[3][2:4], 16, 8)
 			bb, _ := strconv.ParseUint(data[3][4:6], 16, 8)
-			draw(X % xsize, Y % ysize, 0x00, byte(rr), byte(gg), byte(bb))
+			draw(X%xsize, Y%ysize, 0x00, byte(rr), byte(gg), byte(bb))
 		}
 	}
 }
@@ -105,9 +106,9 @@ func ioctl(fd, cmd uintptr, ptr *fb_var_screeninfo) error {
 
 func draw(x, y int, a, r, g, b byte) {
 	offset := xsize*y*4 + x*4
-	data[offset] = r
+	data[offset] = b
 	data[offset+1] = g
-	data[offset+2] = b
+	data[offset+2] = r
 	data[offset+3] = a
 }
 
