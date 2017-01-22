@@ -36,7 +36,6 @@ func main() {
 	go handleExit(c)
 	ln, err := net.Listen("tcp", ":"+port)
 	if err != nil {
-		fmt.Println("TCP")
 		log.Fatal(err)
 	}
 	for {
@@ -62,16 +61,18 @@ func handleConnection(conn net.Conn) {
 	reader := bufio.NewReader(conn)
 	for err == nil {
 		status, err = reader.ReadString('\n')
-		data := strings.Split(status, " ")
-		if status == "SIZE\r\n" {
-			fmt.Fprintf(conn, "SIZE %d %d\n", xsize, ysize)
-		} else if data[0] == "PX" {
-			X, _ := strconv.Atoi(data[1])
-			Y, _ := strconv.Atoi(data[2])
-			rr, _ := strconv.ParseUint(data[3][0:2], 16, 8)
-			gg, _ := strconv.ParseUint(data[3][2:4], 16, 8)
-			bb, _ := strconv.ParseUint(data[3][4:6], 16, 8)
-			draw(X%xsize, Y%ysize, byte(rr), byte(gg), byte(bb))
+		if len(status) > 4 {
+			if status[0:2] == "PX" {
+				data := strings.Split(status, " ")
+				X, _ := strconv.Atoi(data[1])
+				Y, _ := strconv.Atoi(data[2])
+				rr, _ := strconv.ParseUint(data[3][0:2], 16, 8)
+				gg, _ := strconv.ParseUint(data[3][2:4], 16, 8)
+				bb, _ := strconv.ParseUint(data[3][4:6], 16, 8)
+				draw(X%xsize, Y%ysize, byte(rr), byte(gg), byte(bb))
+			} else if status[0:4] == "SIZE" {
+				fmt.Fprintf(conn, "SIZE %d %d\n", xsize, ysize)
+			}
 		}
 	}
 }
@@ -83,7 +84,6 @@ func Fb_init(dev string) {
 	// Framebuffer oeffnen
 	fd, err := unix.Open(dev, unix.O_RDWR, unix.S_IRWXU)
 	if err != nil {
-		fmt.Println("TCP")
 		log.Fatal(err)
 	}
 	var screeninfo fb_var_screeninfo
